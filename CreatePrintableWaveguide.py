@@ -141,8 +141,8 @@ def run(context):
         # Define a distance extent of 5 cm
         distance = adsk.core.ValueInput.createByReal(0.2)
         # TODO should be another prof(ile)
-        extrude1 = extrudes.addSimple(prof2, distance, adsk.fusion.FeatureOperations.CutFeatureOperation)
-        extrude2 = extrudes.addSimple(prof2, distance, adsk.fusion.FeatureOperations.JoinFeatureOperation)
+        extrude1 = extrudes.addSimple(prof, distance, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        extrude2 = extrudes.addSimple(prof, distance, adsk.fusion.FeatureOperations.JoinFeatureOperation)
 
 
 
