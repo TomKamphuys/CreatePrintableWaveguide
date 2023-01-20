@@ -2,6 +2,8 @@
 # Description-Import Ath4 curves from file and make it into printable parts
 
 import adsk.core, adsk.fusion, math, traceback
+import os.path, sys
+
 
 def run(context):
     ui = None
@@ -127,24 +129,82 @@ def run(context):
         radius = brepEdge.length / (2.0*math.pi)
 
         # Draw some circles.
-        circles = throatTopSketch.sketchCurves.sketchCircles
+        mysketch: adsk.fusion.Sketch = rootComp.sketches.add(offsetPlane)
+
+        circles = mysketch.sketchCurves.sketchCircles
+
         circle1 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), radius - 0.5)
         circle2 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), radius - 0.8)
 
         # Get extrude features
         extrudes = rootComp.features.extrudeFeatures
 
-        prof2 = throatTopSketch.profiles.item(0)
-
+        prof2 = mysketch.profiles.item(0)  
 
         # Extrude Sample 1: A simple way of creating typical extrusions (extrusion that goes from the profile plane the specified distance).
         # Define a distance extent of 5 cm
         distance = adsk.core.ValueInput.createByReal(0.2)
-        # TODO should be another prof(ile)
-        extrude1 = extrudes.addSimple(prof, distance, adsk.fusion.FeatureOperations.CutFeatureOperation)
-        extrude2 = extrudes.addSimple(prof, distance, adsk.fusion.FeatureOperations.JoinFeatureOperation)
+        extrude1 = extrudes.addSimple(prof2, distance, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        extrude2 = extrudes.addSimple(prof2, distance, adsk.fusion.FeatureOperations.JoinFeatureOperation)
 
 
+        bottomsketch: adsk.fusion.Sketch = rootComp.sketches.add(rootComp.yZConstructionPlane)
+        bottomCircles = bottomsketch.sketchCurves.sketchCircles
+        mountingHoleHelper = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), 7.6/2)
+        mountingHoleHelper.isConstruction = True
+        mountingHole1 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 7.6/2, 0), 0.65/2)
+        mountingHole2 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, -7.6/2, 0), 0.65/2)
+
+        prof3 = bottomsketch.profiles.item(0)
+        prof4 = bottomsketch.profiles.item(1)
+
+        holeDistance = adsk.core.ValueInput.createByReal(1.0)
+        extrudeHole1 = extrudes.addSimple(prof3, holeDistance, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        extrudeHole2 = extrudes.addSimple(prof4, holeDistance, adsk.fusion.FeatureOperations.CutFeatureOperation)
+
+
+        # petalFaces: adsk.fusion.BRepFaces = petal.faces
+        # petalFace0 = petalFaces.item(0)
+        # petalComp: adsk.fusion.Component = petalFace0.body.parentComponent
+        # petalSketch: adsk.fusion.Sketch = petalComp.sketches.add(petalFace0)
+        # petalSketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), 0.5)
+
+
+
+        # Lot's of stuff to do...
+
+
+
+
+
+        # kinda works, but other stuff needs to be done first:
+
+        # # create a single exportManager instance
+        exportMgr = design.exportManager
+        
+        # scriptDir = os.path.dirname(os.path.abspath(dlg.filename))
+        
+        # # export the occurrence one by one in the root component to a specified file
+        # allOccu = rootComp.allOccurrences
+        # for occ in allOccu:
+        #     fileName = scriptDir + "/" + occ.component.name
+            
+        #     # create stl exportOptions
+        #     stlExportOptions = exportMgr.createSTLExportOptions(occ, fileName)
+        #     stlExportOptions.sendToPrintUtility = False
+            
+        #     exportMgr.execute(stlExportOptions)
+
+        # # export the body one by one in the design to a specified file
+        # allBodies = rootComp.bRepBodies
+        # for body in allBodies:
+        #     fileName = scriptDir + "/" + body.parentComponent.name + '-' + body.name
+            
+        #     # create stl exportOptions
+        #     stlExportOptions = exportMgr.createSTLExportOptions(body, fileName)
+        #     stlExportOptions.sendToPrintUtility = False
+            
+        #     exportMgr.execute(stlExportOptions)
 
             
     except:
