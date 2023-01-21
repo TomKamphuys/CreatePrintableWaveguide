@@ -157,16 +157,18 @@ def run(context):
         prof2 = mysketch.profiles.item(0)  
 
         # Extrude Sample 1: A simple way of creating typical extrusions (extrusion that goes from the profile plane the specified distance).
-        # Define a distance extent of 5 cm
         distance = adsk.core.ValueInput.createByReal(0.2)
+        minusDistance = adsk.core.ValueInput.createByReal(-0.2)
+        doubleDistance = adsk.core.ValueInput.createByReal(0.4)
         extrude1 = extrudes.addSimple(prof2, distance, adsk.fusion.FeatureOperations.CutFeatureOperation)
-        extrude2 = extrudes.addSimple(prof2, distance, adsk.fusion.FeatureOperations.JoinFeatureOperation)
+        extrude2 = extrudes.addSimple(prof2, minusDistance, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        extrude3 = extrudes.addSimple(prof2, doubleDistance, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+        # extrude3.bodies.item(0).name = 'RingConnector'
+
 
 
         bottomsketch: adsk.fusion.Sketch = rootComp.sketches.add(rootComp.yZConstructionPlane)
         bottomCircles = bottomsketch.sketchCurves.sketchCircles
-        # mountingHoleHelper = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), 7.6/2)
-        # mountingHoleHelper.isConstruction = True
         mountingHole1 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 7.6/2, 0), throatMountingHoleDiameter/2)
         mountingHole2 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, -7.6/2, 0), throatMountingHoleDiameter/2)
 
@@ -177,19 +179,33 @@ def run(context):
         extrudeHole1 = extrudes.addSimple(prof3, holeDistance, adsk.fusion.FeatureOperations.CutFeatureOperation)
         extrudeHole2 = extrudes.addSimple(prof4, holeDistance, adsk.fusion.FeatureOperations.CutFeatureOperation)
 
+        petalFaces: adsk.fusion.BRepFaces = petal.faces
+        petalFace = petalFaces.item(3)
+        petalComp: adsk.fusion.Component = petalFace.body.parentComponent
+        petalSketch: adsk.fusion.Sketch = petalComp.sketches.add(petalFace)
+                
+        # Create the offset.
+        dirPoint = adsk.core.Point3D.create(0, .5, 0)
+        connectedCurves = petalSketch.findConnectedCurves(petalSketch.sketchCurves.item(0))
+        offsetCurves = petalSketch.offset(connectedCurves, dirPoint, -1.0)
+        prof6 = petalSketch.profiles.item(0)
 
-        # petalFaces: adsk.fusion.BRepFaces = petal.faces
-        # petalFace0 = petalFaces.item(0)
-        # petalComp: adsk.fusion.Component = petalFace0.body.parentComponent
-        # petalSketch: adsk.fusion.Sketch = petalComp.sketches.add(petalFace0)
-        # petalSketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), 0.5)
+        extrudes = petalComp.features.extrudeFeatures
+        petalConnectionDepth = adsk.core.ValueInput.createByReal(-0.3)
+        connectionHeight = adsk.core.ValueInput.createByReal(2.0*0.3)
+        extrudes.addSimple(prof6, petalConnectionDepth, adsk.fusion.FeatureOperations.CutFeatureOperation)
+        connector = extrudes.addSimple(prof6, connectionHeight, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+        connector.bodies.item(0).name = 'Connector'
 
-
-
-        # Lot's of stuff to do...
-
-
-
+        petalFace2 = petalFaces.item(16)
+        petalComp2: adsk.fusion.Component = petalFace2.body.parentComponent
+        petalSketch2: adsk.fusion.Sketch = petalComp2.sketches.add(petalFace2)
+        dirPoint2 = adsk.core.Point3D.create(0, 0, -0.5)
+        connectedCurves2 = petalSketch2.findConnectedCurves(petalSketch2.sketchCurves.item(1))
+        offsetCurves2 = petalSketch2.offset(connectedCurves2, dirPoint2, -1.5)
+        prof7 = petalSketch2.profiles.item(1)
+        extrudes2 = petalComp2.features.extrudeFeatures
+        extrudes2.addSimple(prof7, petalConnectionDepth, adsk.fusion.FeatureOperations.CutFeatureOperation)
 
 
         # kinda works, but other stuff needs to be done first:
@@ -197,29 +213,31 @@ def run(context):
         # # create a single exportManager instance
         exportMgr = design.exportManager
         
-        # scriptDir = os.path.dirname(os.path.abspath(dlg.filename))
+        scriptDir = os.path.dirname(os.path.abspath(dlg.filename))
         
         # # export the occurrence one by one in the root component to a specified file
         # allOccu = rootComp.allOccurrences
         # for occ in allOccu:
-        #     fileName = scriptDir + "/" + occ.component.name
-            
-        #     # create stl exportOptions
-        #     stlExportOptions = exportMgr.createSTLExportOptions(occ, fileName)
-        #     stlExportOptions.sendToPrintUtility = False
-            
-        #     exportMgr.execute(stlExportOptions)
+        #     if occ.isVisible:
+        #         fileName = scriptDir + "/" + occ.component.name
+                
+        #         # create stl exportOptions
+        #         stlExportOptions = exportMgr.createSTLExportOptions(occ, fileName)
+        #         stlExportOptions.sendToPrintUtility = False
+                
+        #         exportMgr.execute(stlExportOptions)
 
-        # # export the body one by one in the design to a specified file
+        # export the body one by one in the design to a specified file
         # allBodies = rootComp.bRepBodies
         # for body in allBodies:
-        #     fileName = scriptDir + "/" + body.parentComponent.name + '-' + body.name
-            
-        #     # create stl exportOptions
-        #     stlExportOptions = exportMgr.createSTLExportOptions(body, fileName)
-        #     stlExportOptions.sendToPrintUtility = False
-            
-        #     exportMgr.execute(stlExportOptions)
+        #     if body.isVisible:
+        #         fileName = scriptDir + "/" + body.parentComponent.name + '-' + body.name
+                
+        #         # create stl exportOptions
+        #         stlExportOptions = exportMgr.createSTLExportOptions(body, fileName)
+        #         stlExportOptions.sendToPrintUtility = False
+                
+        #         exportMgr.execute(stlExportOptions)
 
             
     except:
