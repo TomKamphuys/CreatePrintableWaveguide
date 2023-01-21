@@ -2,7 +2,20 @@
 # Description-Import Ath4 curves from file and make it into printable parts
 
 import adsk.core, adsk.fusion, math, traceback
-import os.path, sys
+import os.path, sys, configparser
+from pathlib import Path
+
+
+def read_config(dlg):
+    configFileName = Path(dlg.filename).with_suffix('.cfg')
+
+    config = configparser.ConfigParser()
+    config.read(configFileName)
+    throatSettings = 'Throat'
+    throatLength = float(config[throatSettings]['Length'])
+    throatMountingHoleDiameter = float(config[throatSettings]['MountingHoleDiameter'])
+
+    return throatLength, throatMountingHoleDiameter
 
 
 def run(context):
@@ -55,6 +68,8 @@ def run(context):
             line = f.readline().rstrip()
         f.close()
 
+        (throatLength, throatMountingHoleDiameter) = read_config(dlg)
+
         # Draw a line to use as the axis of revolution.
         lines2 = sketch.sketchCurves.sketchLines
         axisLine = lines2.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0), adsk.core.Point3D.create(1, 0, 0)) # X axis
@@ -80,7 +95,7 @@ def run(context):
         # Create a construction plane by offsetting the end face
         planes = rootComp.constructionPlanes
         planeInput = planes.createInput()
-        offsetVal = adsk.core.ValueInput.createByString('8 cm')
+        offsetVal = adsk.core.ValueInput.createByReal(throatLength)
         planeInput.setByOffset(rootComp.yZConstructionPlane, offsetVal)
         offsetPlane = planes.add(planeInput)
         
@@ -150,10 +165,10 @@ def run(context):
 
         bottomsketch: adsk.fusion.Sketch = rootComp.sketches.add(rootComp.yZConstructionPlane)
         bottomCircles = bottomsketch.sketchCurves.sketchCircles
-        mountingHoleHelper = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), 7.6/2)
-        mountingHoleHelper.isConstruction = True
-        mountingHole1 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 7.6/2, 0), 0.65/2)
-        mountingHole2 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, -7.6/2, 0), 0.65/2)
+        # mountingHoleHelper = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), 7.6/2)
+        # mountingHoleHelper.isConstruction = True
+        mountingHole1 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 7.6/2, 0), throatMountingHoleDiameter/2)
+        mountingHole2 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, -7.6/2, 0), throatMountingHoleDiameter/2)
 
         prof3 = bottomsketch.profiles.item(0)
         prof4 = bottomsketch.profiles.item(1)
