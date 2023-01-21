@@ -11,5 +11,9 @@ Current status:
 01-20-2023: Driver mounting holes & glue guide
 ![image](https://user-images.githubusercontent.com/44003942/213812553-c574785c-e9ea-44f2-af94-7911fdec15be.png)
 
+01-21-2023: Added parameters from file
+![image](https://user-images.githubusercontent.com/44003942/213865302-409682d7-2b58-4e13-9a36-2aefd52325eb.png)
+
+
 
 More to come...
