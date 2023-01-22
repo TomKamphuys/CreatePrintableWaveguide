@@ -1,5 +1,9 @@
 # CreatePrintableWaveguide
 
+## Discussion thread:
+https://www.diyaudio.com/community/threads/fusion-360-script-to-turn-ath-waveguide-into-3d-printable-parts.394772/
+
+## Intro
 Fusion 360 script to make (large) waveguides easily printable. The waveguide profile is create by Advanced Transmission Horn (https://at-horns.eu/) which makes a .afp file.
 There is a thread on diyaudio about Ath (https://www.diyaudio.com/community/threads/acoustic-horn-design-the-easy-way-ath4.338806/)
 
