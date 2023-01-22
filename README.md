@@ -1,6 +1,6 @@
 # CreatePrintableWaveguide
 
-## Dicussion thread:
+## Discussion thread:
 https://www.diyaudio.com/community/threads/fusion-360-script-to-turn-ath-waveguide-into-3d-printable-parts.394772/
 
 ## Intro
