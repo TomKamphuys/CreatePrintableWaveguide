@@ -220,6 +220,9 @@ def run(context):
         connector = extrudes.addSimple(prof6, connectionHeight, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         connector.bodies.item(0).name = 'Connector'
 
+
+        # loop over faces and get a point on that plane and check whether one of the axis is nonzero
+        #rootComp.findBRepUsingPoint(adsk.core.Point3D(0,0,0), adsk.fusion.BRepEntityTypes.BRepFaceEntityType, 0.1, visibleEntitiesOnly=True)
         petalFace2 = petalFaces.item(16)
         petalComp2: adsk.fusion.Component = petalFace2.body.parentComponent
         petalSketch2: adsk.fusion.Sketch = petalComp2.sketches.add(petalFace2)
