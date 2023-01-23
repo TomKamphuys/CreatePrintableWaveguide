@@ -5,6 +5,44 @@ import adsk.core, adsk.fusion, math, traceback
 import os.path, sys, configparser
 from pathlib import Path
 
+def getFaceWithX(faces, value):
+    index = 0;
+
+    for i in range(faces.count):
+        myFace = faces.item(i)
+        (_, x, _, _) = myFace.pointOnFace.getData()
+        if (x == value):
+            index = i
+            break
+
+    return faces.item(index)    
+
+
+def getFaceWithY(faces, value):
+    index = 0;
+
+    for i in range(faces.count):
+        myFace = faces.item(i)
+        (_, _, y, _) = myFace.pointOnFace.getData()
+        if (y == value):
+            index = i
+            break
+
+    return faces.item(index)  
+
+
+def getFaceWithZ(faces, value):
+    index = 0;
+
+    for i in range(faces.count):
+        myFace = faces.item(i)
+        (_, _, _, z) = myFace.pointOnFace.getData()
+        if (z == value):
+            index = i
+            break
+
+    return faces.item(index)  
+
 
 def read_config(filename, unitsMgr):
     configFileName = Path(filename).with_suffix('.cfg')
@@ -13,13 +51,14 @@ def read_config(filename, unitsMgr):
     config.read(configFileName)
     throatSettings = 'Throat'
     throatLength = unitsMgr.evaluateExpression(config[throatSettings]['length'], unitsMgr.defaultLengthUnits)
-
     throatMountingHoleDiameter = unitsMgr.evaluateExpression(config[throatSettings]['mountingHoleDiameter'], unitsMgr.defaultLengthUnits)
+    throatSlotWidth = unitsMgr.evaluateExpression(config[throatSettings]['slotWidth'], unitsMgr.defaultLengthUnits)
+    throatSlotDepth =  unitsMgr.evaluateExpression(config[throatSettings]['slotDepth'], unitsMgr.defaultLengthUnits)
 
-    return throatLength, throatMountingHoleDiameter
+    return throatLength, throatMountingHoleDiameter, throatSlotWidth, throatSlotDepth
 
 
-def createMountingHoles(rootComp, throatMountingHoleDiameter, extrudes):
+def createMountingHoles(rootComp: adsk.fusion.Component, throatMountingHoleDiameter, extrudes: adsk.fusion.ExtrudeFeatures):
     bottomsketch: adsk.fusion.Sketch = rootComp.sketches.add(rootComp.yZConstructionPlane)
     bottomCircles = bottomsketch.sketchCurves.sketchCircles
     mountingHole1 = bottomCircles.addByCenterRadius(adsk.core.Point3D.create(0, 7.6/2, 0), throatMountingHoleDiameter/2)
@@ -33,7 +72,7 @@ def createMountingHoles(rootComp, throatMountingHoleDiameter, extrudes):
     extrudeHole2 = extrudes.addSimple(prof4, holeDistance, adsk.fusion.FeatureOperations.CutFeatureOperation)
 
 
-def revolveProfileIntoWaveguide(sketch, rootComp):
+def revolveProfileIntoWaveguide(sketch: adsk.fusion.Sketch, rootComp: adsk.fusion.Component):
     # Draw a line to use as the axis of revolution.
     lines2 = sketch.sketchCurves.sketchLines
     axisLine = lines2.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0), adsk.core.Point3D.create(1, 0, 0)) # X axis
@@ -59,7 +98,7 @@ def revolveProfileIntoWaveguide(sketch, rootComp):
     return fullWaveguide, ext
 
 
-def splitMouthIntoPetal(rootComp, ext, splitBodyFeats):
+def splitMouthIntoPetal(rootComp: adsk.fusion.Component, ext: adsk.fusion.ExtendFeature, splitBodyFeats):
     # split petal
     mouth = ext.bodies.item(1)
     splitBodyInput2 = splitBodyFeats.createInput(mouth, rootComp.xZConstructionPlane, True)
@@ -78,7 +117,7 @@ def splitMouthIntoPetal(rootComp, ext, splitBodyFeats):
     return petal
 
 
-def splitWaveguideIntoThroatAndMouth(fullWaveguide, rootComp, throatLength):
+def splitWaveguideIntoThroatAndMouth(fullWaveguide, rootComp: adsk.fusion.Component, throatLength):
     # Create a construction plane by offsetting the end face
     # This is where the waveguide will be split into he throat and the mouth (petals)
     planes = rootComp.constructionPlanes
@@ -97,7 +136,21 @@ def splitWaveguideIntoThroatAndMouth(fullWaveguide, rootComp, throatLength):
     return splitBodyFeats, offsetPlane
 
 
-def importAFP(filename, rootComp, sketch):
+def getRadiusOfLoop(loop: adsk.fusion.BRepLoop):
+    brepEdges = loop.edges
+    brepEdge = brepEdges.item(0)
+    return brepEdge.length / (2.0*math.pi)
+
+
+def determineMiddleRadiusOfThroatTop(throatTopFace: adsk.fusion.BRepFace):
+    brepLoops = throatTopFace.loops
+    radius1 = getRadiusOfLoop(brepLoops.item(0))
+    radius2 = getRadiusOfLoop(brepLoops.item(1))
+    middleRadius = (radius1 + radius2) / 2
+    return middleRadius
+
+
+def importAFP(filename, rootComp: adsk.fusion.Component, sketch):
     f = open(filename, 'r')
     lines = sketch.sketchCurves.sketchLines
     points = {}
@@ -152,7 +205,7 @@ def run(context):
         # Get extrude features
         extrudes = rootComp.features.extrudeFeatures
 
-        (throatLength, throatMountingHoleDiameter) = read_config(dlg.filename, unitsMgr)
+        (throatLength, throatMountingHoleDiameter, throatSlotWidth, throatSlotDepth) = read_config(dlg.filename, unitsMgr)
 
         importAFP(dlg.filename, rootComp, sketch)
 
@@ -169,48 +222,56 @@ def run(context):
         throat.name = 'Throat'
         faces: adsk.fusion.BRepFaces = throat.faces
 
-        throatTopFace = faces.item(7)
+        throatTopFace = getFaceWithX(faces, throatLength)
         comp: adsk.fusion.Component = throatTopFace.body.parentComponent
         throatTopSketch: adsk.fusion.Sketch = comp.sketches.add(throatTopFace)
         throatTopSketch.name = 'ThroatTop'
-
-        brepLoops = throatTopFace.loops
-        outerLoop = brepLoops.item(0)
-        if not outerLoop.isOuter:
-            outerLoop = brepLoops.item(1)
-        brepEdges = outerLoop.edges
-        brepEdge = brepEdges.item(0)
-        radius = brepEdge.length / (2.0*math.pi)
 
         # Draw some circles.
         mysketch: adsk.fusion.Sketch = rootComp.sketches.add(offsetPlane)
 
         circles = mysketch.sketchCurves.sketchCircles
 
-        circle1 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), radius - 0.5)
-        circle2 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), radius - 0.8)
+        middleRadius = determineMiddleRadiusOfThroatTop(throatTopFace)
+
+        circle1 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), middleRadius + throatSlotWidth/2)
+        circle2 = circles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), middleRadius - throatSlotWidth/2)
 
         prof2 = mysketch.profiles.item(0)  
 
         # Extrude Sample 1: A simple way of creating typical extrusions (extrusion that goes from the profile plane the specified distance).
-        distance = adsk.core.ValueInput.createByString('2 mm')
-        minusDistance = adsk.core.ValueInput.createByString('-2 mm')
-        doubleDistance = adsk.core.ValueInput.createByString('4 mm')
+        distance = adsk.core.ValueInput.createByReal(throatSlotDepth)
+        minusDistance = adsk.core.ValueInput.createByReal(-throatSlotDepth)
+        doubleDistance = adsk.core.ValueInput.createByReal(2*throatSlotDepth)
         extrude1 = extrudes.addSimple(prof2, distance, adsk.fusion.FeatureOperations.CutFeatureOperation)
         extrude2 = extrudes.addSimple(prof2, minusDistance, adsk.fusion.FeatureOperations.CutFeatureOperation)
         extrude3 = extrudes.addSimple(prof2, doubleDistance, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         extrude3.bodies.item(0).name = 'RingConnector'
+        ringConnector = extrude3.bodies.item(0)
+        ringConnectorBottomFace = extrude3.startFaces.item(0)
+        edgeCollection = adsk.core.ObjectCollection.create()
+        edgeCollection.add(ringConnectorBottomFace.loops.item(0).edges.item(0))
+        edgeCollection.add(ringConnectorBottomFace.loops.item(1).edges.item(0))
+
+        
+        # Create the FilletInput object.
+        fillets = rootComp.features.filletFeatures
+        filletInput = fillets.createInput()      
+        filletInput.addConstantRadiusEdgeSet(edgeCollection, adsk.core.ValueInput.createByString('1 mm'), True)
+
+        # Create the fillet.        
+        fillet = fillets.add(filletInput)
 
 
         petalFaces: adsk.fusion.BRepFaces = petal.faces
-        petalFace = petalFaces.item(3)
+        petalFace = getFaceWithY(petalFaces, 0.0)
         petalComp: adsk.fusion.Component = petalFace.body.parentComponent
         petalSketch: adsk.fusion.Sketch = petalComp.sketches.add(petalFace)
                 
         # Create the offset.
-        dirPoint = adsk.core.Point3D.create(0, .5, 0)
+        dirPoint = petalFace.pointOnFace
         connectedCurves = petalSketch.findConnectedCurves(petalSketch.sketchCurves.item(0))
-        offsetCurves = petalSketch.offset(connectedCurves, dirPoint, -1.0)
+        offsetCurves = petalSketch.offset(connectedCurves, dirPoint, -0.2)
         prof6 = petalSketch.profiles.item(0)
 
         extrudes = petalComp.features.extrudeFeatures
@@ -220,15 +281,12 @@ def run(context):
         connector = extrudes.addSimple(prof6, connectionHeight, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         connector.bodies.item(0).name = 'Connector'
 
-
-        # loop over faces and get a point on that plane and check whether one of the axis is nonzero
-        #rootComp.findBRepUsingPoint(adsk.core.Point3D(0,0,0), adsk.fusion.BRepEntityTypes.BRepFaceEntityType, 0.1, visibleEntitiesOnly=True)
-        petalFace2 = petalFaces.item(16)
+        petalFace2 = getFaceWithZ(petalFaces, 0.0)
         petalComp2: adsk.fusion.Component = petalFace2.body.parentComponent
         petalSketch2: adsk.fusion.Sketch = petalComp2.sketches.add(petalFace2)
-        dirPoint2 = adsk.core.Point3D.create(0, 0, -0.5)
-        connectedCurves2 = petalSketch2.findConnectedCurves(petalSketch2.sketchCurves.item(1))
-        offsetCurves2 = petalSketch2.offset(connectedCurves2, dirPoint2, -1.5)
+        dirPoint2 = petalFace2.pointOnFace
+        connectedCurves2 = petalSketch2.findConnectedCurves(petalSketch2.sketchCurves.item(0))
+        offsetCurves2 = petalSketch2.offset(connectedCurves2, dirPoint2, 0.2)
         prof7 = petalSketch2.profiles.item(1)
         extrudes2 = petalComp2.features.extrudeFeatures
         extrudes2.addSimple(prof7, petalConnectionDepth, adsk.fusion.FeatureOperations.CutFeatureOperation)
