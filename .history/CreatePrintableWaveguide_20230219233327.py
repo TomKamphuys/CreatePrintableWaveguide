@@ -306,13 +306,13 @@ def generatePetalConnection(petal: adsk.fusion.BRepBody, petalConnectionSettings
     connector.bodies.item(0).name = 'PetalConnector'
 
     if (petalConnectionSettings.hasFillet):
-        connectorBottomFace = connector.startFaces.item(0)
-        connectorTopFace = connector.endFaces.item(0)
+        ringConnectorBottomFace = connector.startFaces.item(0)
+        ringConnectorTopFace = connector.endFaces.item(0)
         edgeCollection = adsk.core.ObjectCollection.create()
-        edgeCollection.add(connectorBottomFace.loops.item(0).edges.item(2))
-        edgeCollection.add(connectorBottomFace.loops.item(0).edges.item(4))
-        edgeCollection.add(connectorTopFace.loops.item(0).edges.item(2))
-        edgeCollection.add(connectorTopFace.loops.item(0).edges.item(4))
+        edgeCollection.add(ringConnectorBottomFace.loops.item(0).edges.item(0))
+        edgeCollection.add(ringConnectorBottomFace.loops.item(1).edges.item(0))
+        edgeCollection.add(ringConnectorTopFace.loops.item(0).edges.item(0))
+        edgeCollection.add(ringConnectorTopFace.loops.item(1).edges.item(0))
         
         # Create the FilletInput object.
         fillets = rootComp.features.filletFeatures

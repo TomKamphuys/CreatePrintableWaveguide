@@ -68,9 +68,6 @@ class PetalConnector:
     filletSize = 0
 
 
-class Petal:
-    roundBack = False
-
 def readQuantity(config, settingsName, variableName, unitsMgr):
      return unitsMgr.evaluateExpression(config[settingsName][variableName], unitsMgr.defaultLengthUnits)
     
@@ -89,10 +86,6 @@ def read_config(filename, unitsMgr):
     mountingHoleSettings = MountingHoles()
     mountingHoleSettings.holeDiameter = readQuantity(config, mountingHoleSettingsName, 'holeDiameter', unitsMgr)
     mountingHoleSettings.diameter = readQuantity(config, mountingHoleSettingsName, 'diameter', unitsMgr)
-
-    petalSettingsName = 'Petal'
-    petalSettings = Petal()
-    petalSettings.roundBack = config[petalSettingsName]['roundBack'] == 'True'
 
     throatMouthConnectorSettingsName = 'ThroatMouthConnector'
     throatMouthConnectorSettings = ThroatMouthConnector()
@@ -113,7 +106,7 @@ def read_config(filename, unitsMgr):
     petalConnectorSettings.hasFillet = True
     petalConnectorSettings.filletSize = readQuantity(config, petalConnectorSettingsName, 'filletSize', unitsMgr)
 
-    return throatSettings, mountingHoleSettings, petalSettings, throatMouthConnectorSettings, petalConnectorSettings
+    return throatSettings, mountingHoleSettings, throatMouthConnectorSettings, petalConnectorSettings
 
 
 def createMountingHoles(rootComp: adsk.fusion.Component, mountingHoleSettings, extrudes: adsk.fusion.ExtrudeFeatures):
@@ -234,11 +227,9 @@ def determineMiddleRadiusOfThroatTop(throatTopFace: adsk.fusion.BRepFace):
     return middleRadius
 
 
-def importAFP(filename, rootComp: adsk.fusion.Component, sketch: adsk.fusion.Sketch, roundBack):
+def importAFP(filename, rootComp: adsk.fusion.Component, sketch):
     f = open(filename, 'r')
     lines = sketch.sketchCurves.sketchLines
-    circles = sketch.sketchCurves.sketchCircles
-    arcs = sketch.sketchCurves.sketchArcs
     points = {}
     
     line = f.readline().rstrip()
@@ -252,14 +243,7 @@ def importAFP(filename, rootComp: adsk.fusion.Component, sketch: adsk.fusion.Ske
                 0.1*float(items[2]), 0.1*float(items[3]), 0.0
             )
         elif line[0] == 'L' and len(items) >= 3:
-            if ((items[1] == '61') & (roundBack)):
-                # this adds a half torus back to the waveguide adge
-                one = points[items[1]]
-                two = points[items[2]]
-                three = adsk.core.Point3D.create((one.x+two.x)/2, (one.y+two.y)/2, (one.z+two.z)/2)
-                arcs.addByCenterStartSweep(three, one, math.pi)
-            else:
-                lines.addByTwoPoints(points[items[1]], points[items[2]])
+            lines.addByTwoPoints(points[items[1]], points[items[2]])
         
         elif line[0] == 'S' and len(items) >= 3:
             splinePoints = adsk.core.ObjectCollection.create()
@@ -276,53 +260,33 @@ def importAFP(filename, rootComp: adsk.fusion.Component, sketch: adsk.fusion.Ske
         line = f.readline().rstrip()
     f.close()
 
-def generatePetalConnection(petal: adsk.fusion.BRepBody, petalConnectionSettings: PetalConnector, rootComp):
+def generatePetalConnection(petal: adsk.fusion.BRepBody, petalConnectionSettings: PetalConnector):
     petalFaces: adsk.fusion.BRepFaces = petal.faces
     petalFace = getFaceWithY(petalFaces, 0.0)
     petalComp: adsk.fusion.Component = petalFace.body.parentComponent
     petalSketch: adsk.fusion.Sketch = petalComp.sketches.add(petalFace)
 
     edgeThickness = (petalConnectionSettings.petalThickness - petalConnectionSettings.slotWidth)/2
-    edgeThickness2 = (petalConnectionSettings.petalThickness - petalConnectionSettings.connectorWidth)/2
             
     # Create the offset.
     dirPoint = petalFace.pointOnFace
     connectedCurves = petalSketch.findConnectedCurves(petalSketch.sketchCurves.item(0))
-    petalSketch.offset(connectedCurves, dirPoint, -edgeThickness2)
+    petalSketch.offset(connectedCurves, dirPoint, -edgeThickness)
     prof6 = petalSketch.profiles.item(0)
 
-    # create the slot
-    slotDepth = adsk.core.ValueInput.createByReal(-petalConnectionSettings.slotDepth)
     extrudes = petalComp.features.extrudeFeatures
-    extrudes.addSimple(prof6, slotDepth, adsk.fusion.FeatureOperations.CutFeatureOperation)
-
-    # create the connector
+    petalConnectionDepth = adsk.core.ValueInput.createByReal(-petalConnectionSettings.slotDepth)
     connectionHeight = adsk.core.ValueInput.createByReal(petalConnectionSettings.connectorHeight)
-    petalSketch.offset(connectedCurves, dirPoint, -edgeThickness)
-    prof6b = petalSketch.profiles.item(0)
-    extInput: adsk.fusion.ExtrudeFeatureInput = extrudes.createInput(prof6b, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+
+    extInput: adsk.fusion.ExtrudeFeatureInput = extrudes.createInput(prof6, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+   
     extInput.setSymmetricExtent(connectionHeight, True)
+
+    extrudes.addSimple(prof6, petalConnectionDepth, adsk.fusion.FeatureOperations.CutFeatureOperation)
+
     connector = extrudes.add(extInput)
     connector.bodies.item(0).name = 'PetalConnector'
 
-    if (petalConnectionSettings.hasFillet):
-        connectorBottomFace = connector.startFaces.item(0)
-        connectorTopFace = connector.endFaces.item(0)
-        edgeCollection = adsk.core.ObjectCollection.create()
-        edgeCollection.add(connectorBottomFace.loops.item(0).edges.item(2))
-        edgeCollection.add(connectorBottomFace.loops.item(0).edges.item(4))
-        edgeCollection.add(connectorTopFace.loops.item(0).edges.item(2))
-        edgeCollection.add(connectorTopFace.loops.item(0).edges.item(4))
-        
-        # Create the FilletInput object.
-        fillets = rootComp.features.filletFeatures
-        filletInput = fillets.createInput()      
-        filletInput.addConstantRadiusEdgeSet(edgeCollection, adsk.core.ValueInput.createByReal(petalConnectionSettings.filletSize), True)
-
-        # Create the fillet.        
-        fillets.add(filletInput) 
-
-    # create the slot on the other side
     petalFace2 = getFaceWithZ(petalFaces, 0.0)
     petalComp2: adsk.fusion.Component = petalFace2.body.parentComponent
     petalSketch2: adsk.fusion.Sketch = petalComp2.sketches.add(petalFace2)
@@ -331,7 +295,7 @@ def generatePetalConnection(petal: adsk.fusion.BRepBody, petalConnectionSettings
     petalSketch2.offset(connectedCurves2, dirPoint2, edgeThickness)
     prof7 = petalSketch2.profiles.item(1)
     extrudes2 = petalComp2.features.extrudeFeatures
-    extrudes2.addSimple(prof7, slotDepth, adsk.fusion.FeatureOperations.CutFeatureOperation)
+    extrudes2.addSimple(prof7, petalConnectionDepth, adsk.fusion.FeatureOperations.CutFeatureOperation)
 
 
 def createThroatMouthConnector(throat: adsk.fusion.BRepBody, rootComp: adsk.fusion.Component, offsetPlane, throatMouthConnectorSettings: ThroatMouthConnector, throatLength):
@@ -375,22 +339,18 @@ def createThroatMouthConnector(throat: adsk.fusion.BRepBody, rootComp: adsk.fusi
     extrude3 = extrudes.add(extInput)
     extrude3.bodies.item(0).name = 'RingConnector'   
 
-    if (throatMouthConnectorSettings.hasFillet):
-        ringConnectorBottomFace = extrude3.startFaces.item(0)
-        ringConnectorTopFace = extrude3.endFaces.item(0)
-        edgeCollection = adsk.core.ObjectCollection.create()
-        edgeCollection.add(ringConnectorBottomFace.loops.item(0).edges.item(0))
-        edgeCollection.add(ringConnectorBottomFace.loops.item(1).edges.item(0))
-        edgeCollection.add(ringConnectorTopFace.loops.item(0).edges.item(0))
-        edgeCollection.add(ringConnectorTopFace.loops.item(1).edges.item(0))
-        
-        # Create the FilletInput object.
-        fillets = rootComp.features.filletFeatures
-        filletInput = fillets.createInput()      
-        filletInput.addConstantRadiusEdgeSet(edgeCollection, adsk.core.ValueInput.createByReal(throatMouthConnectorSettings.filletSize), True)
+    ringConnectorBottomFace = extrude3.startFaces.item(0)
+    edgeCollection = adsk.core.ObjectCollection.create()
+    edgeCollection.add(ringConnectorBottomFace.loops.item(0).edges.item(0))
+    edgeCollection.add(ringConnectorBottomFace.loops.item(1).edges.item(0))
+    
+    # Create the FilletInput object.
+    fillets = rootComp.features.filletFeatures
+    filletInput = fillets.createInput()      
+    filletInput.addConstantRadiusEdgeSet(edgeCollection, adsk.core.ValueInput.createByReal(throatMouthConnectorSettings.filletSize), True)
 
-        # Create the fillet.        
-        fillets.add(filletInput) 
+    # Create the fillet.        
+    fillets.add(filletInput) 
     
 
 def run(context):
@@ -415,9 +375,9 @@ def run(context):
         # Get extrude features
         extrudes = rootComp.features.extrudeFeatures
 
-        (throatSettings, mountingHoleSettings, petalSettings, throatMouthConnectorSettings, petalConnectorSettings) = read_config(dlg.filename, unitsMgr)
+        (throatSettings, mountingHoleSettings, throatMouthConnectorSettings, petalConnectorSettings) = read_config(dlg.filename, unitsMgr)
 
-        importAFP(dlg.filename, rootComp, sketch, petalSettings.roundBack)
+        importAFP(dlg.filename, rootComp, sketch)
 
         (fullWaveguide, ext) = revolveProfileIntoWaveguide(sketch, rootComp)
 
@@ -430,7 +390,7 @@ def run(context):
         throat = ext.bodies.item(0)
         createThroatMouthConnector(throat, rootComp, offsetPlane, throatMouthConnectorSettings, throatSettings.length)
 
-        generatePetalConnection(petal, petalConnectorSettings, rootComp)
+        generatePetalConnection(petal, petalConnectorSettings)
 
 
         # kinda works, but other stuff needs to be done first:
